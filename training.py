@@ -1,8 +1,10 @@
+# %%
+#Import/data
 import pandas as pd
 import numpy as np
 from numpy import nan
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import confusion_matrix, classification_report
 import tensorflow as tf
 from tensorflow import feature_column
 from tensorflow.keras import layers
@@ -31,13 +33,13 @@ train_feat.corr()
 train, test = train_test_split(train_feat, test_size=0.2, random_state=42)
 
 
-def df_to_dataset(dataframe, shuffle, batch_size):
+def df_to_dataset(dataframe, shuffle, BATCH_SIZE):
   dataframe = dataframe.copy()
   labels = dataframe.pop('Survived')
   ds = tf.data.Dataset.from_tensor_slices((dict(dataframe), labels))
   if shuffle:
     ds = ds.shuffle(buffer_size=len(dataframe))
-  ds = ds.batch(batch_size)
+  ds = ds.batch(BATCH_SIZE)
   return ds
 
 
@@ -57,10 +59,13 @@ feature_columns.append(sex_one_hot)
 # create feature layer
 feature_layer = tf.keras.layers.DenseFeatures(feature_columns)
 
-# datasets
-batch_size = 32
-train_ds = df_to_dataset(train, True, batch_size)
-test_ds = df_to_dataset(test, False, batch_size)
+
+# %%
+# Training
+BATCH_SIZE = 32
+EPOCS = 300
+train_ds = df_to_dataset(train, True, BATCH_SIZE)
+test_ds = df_to_dataset(test, False, BATCH_SIZE)
 
 # model
 model = tf.keras.Sequential([
@@ -76,7 +81,7 @@ model.compile(optimizer='adam',
 # train           
 history = model.fit(train_ds,
           validation_data=test_ds,
-          epochs=30)
+          epochs=EPOCS)
 
 # plot
 plt.plot(history.history['loss'])
@@ -98,8 +103,9 @@ plt.show()
 # metrics
 loss, accuracy = model.evaluate(test_ds)
 y_pred = model.predict_classes(test_ds)
-con_mat = tf.math.confusion_matrix(labels=test.Survived, predictions=y_pred).numpy()
-con_mat = confusion_matrix(test.Survived, y_pred)
+y_true = test.Survived
+con_mat = tf.math.confusion_matrix(labels=y_true, predictions=y_pred).numpy()
+target_names = ['did not survive', 'survived']
+print(classification_report(y_true, y_pred, target_names=target_names))
 
-# Note 0 = 0 ( meaning died, so in both test and predicted more people died then survived)
-test.Survived.sum()
+# %%
