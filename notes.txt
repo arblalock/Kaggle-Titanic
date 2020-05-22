@@ -1,0 +1,13 @@
+Try taking out fare and include age again
+
+Highest so far (300 epochs with drop null  'Pclass', 'Age', 'SibSp', 'Parch', 'Fare', 'Sex')
+
+                    precision    recall  f1-score   support
+did not survive       0.75      0.98      0.85        87
+       survived       0.93      0.50      0.65        56
+
+       accuracy                           0.79       143
+      macro avg       0.84      0.74      0.75       143
+   weighted avg       0.82      0.79      0.77       143
+
+

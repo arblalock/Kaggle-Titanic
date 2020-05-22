@@ -1,5 +1,5 @@
 # %%
-#Import/data
+#Import libraries
 import pandas as pd
 import numpy as np
 from numpy import nan
@@ -10,19 +10,24 @@ from tensorflow import feature_column
 from tensorflow.keras import layers
 import matplotlib.pyplot as plt
 
-train = pd.read_csv('./data/train.csv')
-test = pd.read_csv('./data/test.csv')
+# %%
+#Import data
+train_raw = pd.read_csv('./data/train.csv')
 
 # Exploring
-train.describe()
-train.groupby('Ticket').nunique()
-train.isnull().sum()
-
-train.head()
+train_raw.describe()
+train_raw.groupby('Ticket').nunique()
+train_raw.isnull().sum()
+train_raw.head()
 
 # Feature selection
-features = ['Pclass', 'Age', 'SibSp', 'Parch', 'Fare', 'Sex', 'Survived']
-train_feat = train[features]
+label = 'Survived'
+# num_features = ['Pclass', 'SibSp', 'Parch', 'Age', 'Fare']
+num_features = ['Pclass', 'SibSp', 'Parch']
+cat_features = ['Sex']
+select_data = [label] + num_features + cat_features
+train_feat = train_raw[select_data]
+print(train_feat.isnull().sum())
 train_feat = train_feat.dropna()
 
 
@@ -33,26 +38,26 @@ train_feat.corr()
 train, test = train_test_split(train_feat, test_size=0.2, random_state=42)
 
 
-def df_to_dataset(dataframe, shuffle, BATCH_SIZE):
+def df_to_dataset(dataframe, shuffle, batch_size):
   dataframe = dataframe.copy()
-  labels = dataframe.pop('Survived')
+  labels = dataframe.pop(label)
   ds = tf.data.Dataset.from_tensor_slices((dict(dataframe), labels))
   if shuffle:
     ds = ds.shuffle(buffer_size=len(dataframe))
-  ds = ds.batch(BATCH_SIZE)
+  ds = ds.batch(batch_size)
   return ds
 
 
 feature_columns = []
 
 # numeric cols
-for header in ['Pclass', 'Age', 'SibSp', 'Parch', 'Fare']:
+for header in num_features:
     feature_columns.append(feature_column.numeric_column(header))
 
 
 # indicator cols
 sex = feature_column.categorical_column_with_vocabulary_list(
-    'Sex', ['male', 'female'])
+    cat_features[0], ['male', 'female'])
 sex_one_hot = feature_column.indicator_column(sex)
 feature_columns.append(sex_one_hot)
 
@@ -63,7 +68,7 @@ feature_layer = tf.keras.layers.DenseFeatures(feature_columns)
 # %%
 # Training
 BATCH_SIZE = 32
-EPOCS = 300
+EPOCS = 200
 train_ds = df_to_dataset(train, True, BATCH_SIZE)
 test_ds = df_to_dataset(test, False, BATCH_SIZE)
 
