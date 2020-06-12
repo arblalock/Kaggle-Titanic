@@ -5,9 +5,10 @@ import numpy as np
 from numpy import nan
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix, classification_report
+from sklearn.impute import SimpleImputer
 import tensorflow as tf
 from tensorflow import feature_column
-from tensorflow.keras import layers
+from tensorflow.keras import layers, regularizers
 import matplotlib.pyplot as plt
 
 # %%
@@ -23,13 +24,24 @@ train_raw.head()
 # Feature selection
 label = 'Survived'
 # num_features = ['Pclass', 'SibSp', 'Parch', 'Age', 'Fare']
-num_features = ['Pclass', 'SibSp', 'Parch']
+num_features = ['Pclass', 'SibSp', 'Parch', 'Age']
 cat_features = ['Sex']
-select_data = [label] + num_features + cat_features
-train_feat = train_raw[select_data]
-print(train_feat.isnull().sum())
-train_feat = train_feat.dropna()
 
+
+train_ds = train_raw.copy()
+train_ds.fillna(np.nan)
+print(train_ds.isnull().sum())
+imp = SimpleImputer(missing_values=np.nan, strategy='mean')
+
+num_feat_ds = train_ds[num_features]
+cat_feat_ds = train_ds[cat_features]
+label_ds = train_ds[label]
+
+#Handle NANs
+for feat in num_features:
+    num_feat_ds[feat] = imp.fit_transform(np.array(num_feat_ds[feat]).reshape(-1, 1))
+
+train_feat = pd.concat([num_feat_ds, cat_feat_ds, label_ds], axis=1, sort=False)
 
 # Descriptives
 train_feat.corr()
@@ -75,8 +87,8 @@ test_ds = df_to_dataset(test, False, BATCH_SIZE)
 # model
 model = tf.keras.Sequential([
   feature_layer,
-  layers.Dense(128, activation='relu'),
-  layers.Dense(128, activation='relu'),
+  layers.Dense(128, activation='relu', activity_regularizer=regularizers.l2(1e-5)),
+  layers.Dense(128, activation='relu', activity_regularizer=regularizers.l2(1e-5)),
   layers.Dense(1, activation='sigmoid')
 ])
 model.compile(optimizer='adam',

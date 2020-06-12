@@ -1,6 +1,7 @@
-Try taking out fare and include age again
+Add the rest of the rest of the data
 
-Highest so far (300 epochs with drop null  'Pclass', 'Age', 'SibSp', 'Parch', 'Fare', 'Sex')
+Highest so far - drop null
+features: 'Pclass', 'Age', 'SibSp', 'Parch', 'Fare', 'Sex'
 
                     precision    recall  f1-score   support
 did not survive       0.75      0.98      0.85        87
@@ -11,3 +12,14 @@ did not survive       0.75      0.98      0.85        87
    weighted avg       0.82      0.79      0.77       143
 
 
+Imputing Age
+features: 'Pclass', 'SibSp', 'Parch', 'Age', 'Fare', 'Sex'
+
+                     precision    recall  f1-score   support
+
+did not survive       0.76      0.89      0.82       105
+       survived       0.79      0.61      0.69        74
+
+       accuracy                           0.77       179
+      macro avg       0.78      0.75      0.75       179
+   weighted avg       0.77      0.77      0.76       179
