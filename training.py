@@ -9,29 +9,37 @@ from sklearn.impute import SimpleImputer
 import tensorflow as tf
 from tensorflow import feature_column
 from tensorflow.keras import layers, regularizers
+from tensorflow.keras.constraints import max_norm
 import matplotlib.pyplot as plt
+
+MODEL_SAVE_PATH = './saved_models/'
 
 # %%
 #Import data
 train_raw = pd.read_csv('./data/train.csv')
 
+last_names = []
+for x in train_raw['Name']:
+    last_names.append(x.split(',')[0])
+
+train_raw['Last_Name'] = last_names
 # Exploring
 train_raw.describe()
-train_raw.groupby('Ticket').nunique()
-train_raw.isnull().sum()
 train_raw.head()
+print(train_raw.isnull().sum())
+
+
 
 # Feature selection
 label = 'Survived'
-# num_features = ['Pclass', 'SibSp', 'Parch', 'Age', 'Fare']
-num_features = ['Pclass', 'SibSp', 'Parch', 'Age']
-cat_features = ['Sex']
+num_features = ['Pclass', 'SibSp', 'Parch', 'Age', 'Fare']
+cat_features = ['Sex',  'Embarked', 'Ticket', 'Last_Name']
 
 
 train_ds = train_raw.copy()
 train_ds.fillna(np.nan)
-print(train_ds.isnull().sum())
-imp = SimpleImputer(missing_values=np.nan, strategy='mean')
+num_imp = SimpleImputer(missing_values=np.nan, strategy='mean')
+cat_imp = SimpleImputer(missing_values=np.nan, strategy='most_frequent')
 
 num_feat_ds = train_ds[num_features]
 cat_feat_ds = train_ds[cat_features]
@@ -39,7 +47,10 @@ label_ds = train_ds[label]
 
 #Handle NANs
 for feat in num_features:
-    num_feat_ds[feat] = imp.fit_transform(np.array(num_feat_ds[feat]).reshape(-1, 1))
+    num_feat_ds[feat] = num_imp.fit_transform(np.array(num_feat_ds[feat]).reshape(-1, 1))
+
+for feat in cat_features:
+    cat_feat_ds[feat] = cat_imp.fit_transform(np.array(cat_feat_ds[feat]).reshape(-1, 1))
 
 train_feat = pd.concat([num_feat_ds, cat_feat_ds, label_ds], axis=1, sort=False)
 
@@ -69,29 +80,57 @@ for header in num_features:
 
 # indicator cols
 sex = feature_column.categorical_column_with_vocabulary_list(
-    cat_features[0], ['male', 'female'])
-sex_one_hot = feature_column.indicator_column(sex)
-feature_columns.append(sex_one_hot)
+    'Sex', ['male', 'female'])
+feature_columns.append(feature_column.indicator_column(sex))
+
+embarked = feature_column.categorical_column_with_vocabulary_list(
+    'Embarked', ['C', 'Q', 'S'])
+feature_columns.append(feature_column.indicator_column(embarked))
+
+train_raw.groupby('Ticket').nunique()  # unique tickets = 681
+ticket_hashed = feature_column.categorical_column_with_hash_bucket(
+      'Ticket', hash_bucket_size=681)
+feature_columns.append(feature_column.indicator_column(ticket_hashed))
+
+train_raw.groupby('Last_Name').nunique() # unique last names = 667
+lname_hashed = feature_column.categorical_column_with_hash_bucket(
+      'Last_Name', hash_bucket_size=667)
+feature_columns.append(feature_column.indicator_column(lname_hashed))
+
+
 
 # create feature layer
 feature_layer = tf.keras.layers.DenseFeatures(feature_columns)
 
 
 # %%
-# Training
+# Train Model
 BATCH_SIZE = 32
-EPOCS = 200
+EPOCS = 80
+LEARNING_RATE = 0.0001
+L2 = 1e-3
 train_ds = df_to_dataset(train, True, BATCH_SIZE)
 test_ds = df_to_dataset(test, False, BATCH_SIZE)
 
+
+# example_batch = next(iter(train_ds))[0]
+# def demo(feature_column):
+#   feature_layer = layers.DenseFeatures(feature_column)
+#   return feature_layer(example_batch).numpy()
+# peak = demo(feature_column.indicator_column(ticket_hashed))
+
+opt = tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE)
 # model
 model = tf.keras.Sequential([
   feature_layer,
-  layers.Dense(128, activation='relu', activity_regularizer=regularizers.l2(1e-5)),
-  layers.Dense(128, activation='relu', activity_regularizer=regularizers.l2(1e-5)),
+#   layers.Dense(128, activation='relu'),
+#   layers.Dense(128, activation='relu'),
+  layers.Dense(128, activation='relu', activity_regularizer=regularizers.l2(L2)),
+  layers.Dense(128, activation='relu', activity_regularizer=regularizers.l2(L2)),
   layers.Dense(1, activation='sigmoid')
 ])
-model.compile(optimizer='adam',
+
+model.compile(optimizer=opt,
               loss=tf.keras.losses.BinaryCrossentropy(from_logits=True),
               metrics=['accuracy'])
 
@@ -117,7 +156,6 @@ plt.xlabel('epoch')
 plt.legend(['train', 'test'], loc='upper left')
 plt.show()
 
-# metrics
 loss, accuracy = model.evaluate(test_ds)
 y_pred = model.predict_classes(test_ds)
 y_true = test.Survived
@@ -125,4 +163,14 @@ con_mat = tf.math.confusion_matrix(labels=y_true, predictions=y_pred).numpy()
 target_names = ['did not survive', 'survived']
 print(classification_report(y_true, y_pred, target_names=target_names))
 
+
+
 # %%
+# Save Model
+MODEL_NAME = 'class_age_sib_par_fare_sex_emb_ticket_lname'
+model.save(MODEL_SAVE_PATH+MODEL_NAME)
+
+# %%
+# Load Model
+MODEL_NAME = 'class_age_sib_par_fare_sex_embc'
+model = tensorflow.keras.models.load_model(MODEL_SAVE_PATH+MODEL_NAME)
