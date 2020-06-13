@@ -18,39 +18,44 @@ MODEL_SAVE_PATH = './saved_models/'
 #Import data
 train_raw = pd.read_csv('./data/train.csv')
 
-last_names = []
-for x in train_raw['Name']:
-    last_names.append(x.split(',')[0])
-
-train_raw['Last_Name'] = last_names
 # Exploring
 train_raw.describe()
 train_raw.head()
 print(train_raw.isnull().sum())
 
-
-
-# Feature selection
+# Feature selection/creation
 label = 'Survived'
-num_features = ['Pclass', 'SibSp', 'Parch', 'Age', 'Fare']
-cat_features = ['Sex',  'Embarked', 'Ticket', 'Last_Name']
+num_features = ['Pclass', 'SibSp', 'Parch', 'Age']
+# num_features = ['Pclass', 'SibSp', 'Parch', 'Age', 'Fare']
+cat_features_freqFill = ['Sex',  'Embarked', 'Ticket', 'Last_Name']
+cat_features_xFill = ['Cabin']
 
+last_names = []
+for x in train_raw['Name']:
+    last_names.append(x.split(',')[0])
 
+train_raw['Last_Name'] = last_names
 train_ds = train_raw.copy()
-train_ds.fillna(np.nan)
-num_imp = SimpleImputer(missing_values=np.nan, strategy='mean')
-cat_imp = SimpleImputer(missing_values=np.nan, strategy='most_frequent')
 
 num_feat_ds = train_ds[num_features]
-cat_feat_ds = train_ds[cat_features]
+cat_feat_ds = train_ds[cat_features_freqFill + cat_features_xFill]
 label_ds = train_ds[label]
 
-#Handle NANs
+#Handle missing data
+train_ds.fillna(np.nan)
+num_imp = SimpleImputer(missing_values=np.nan, strategy='mean')
+cat_imp_freq = SimpleImputer(missing_values=np.nan, strategy='most_frequent')
+cat_imp_x = SimpleImputer(missing_values=np.nan, strategy='constant', fill_value='xxxxx')
+
 for feat in num_features:
     num_feat_ds[feat] = num_imp.fit_transform(np.array(num_feat_ds[feat]).reshape(-1, 1))
 
-for feat in cat_features:
-    cat_feat_ds[feat] = cat_imp.fit_transform(np.array(cat_feat_ds[feat]).reshape(-1, 1))
+
+for feat in cat_features_freqFill:
+    cat_feat_ds[feat] = cat_imp_freq.fit_transform(np.array(cat_feat_ds[feat]).reshape(-1, 1))
+
+for feat in cat_features_xFill:
+    cat_feat_ds[feat] = cat_imp_x.fit_transform(np.array(cat_feat_ds[feat]).reshape(-1, 1))
 
 train_feat = pd.concat([num_feat_ds, cat_feat_ds, label_ds], axis=1, sort=False)
 
@@ -97,7 +102,10 @@ lname_hashed = feature_column.categorical_column_with_hash_bucket(
       'Last_Name', hash_bucket_size=667)
 feature_columns.append(feature_column.indicator_column(lname_hashed))
 
-
+train_raw.groupby('Cabin').nunique() # unique Cabins = 147
+cabin_hashed = feature_column.categorical_column_with_hash_bucket(
+      'Cabin', hash_bucket_size=147)
+feature_columns.append(feature_column.indicator_column(cabin_hashed))
 
 # create feature layer
 feature_layer = tf.keras.layers.DenseFeatures(feature_columns)
@@ -106,9 +114,9 @@ feature_layer = tf.keras.layers.DenseFeatures(feature_columns)
 # %%
 # Train Model
 BATCH_SIZE = 32
-EPOCS = 80
+EPOCS = 70
 LEARNING_RATE = 0.0001
-L2 = 1e-3
+L2 = 1e-4
 train_ds = df_to_dataset(train, True, BATCH_SIZE)
 test_ds = df_to_dataset(test, False, BATCH_SIZE)
 
@@ -125,6 +133,7 @@ model = tf.keras.Sequential([
   feature_layer,
 #   layers.Dense(128, activation='relu'),
 #   layers.Dense(128, activation='relu'),
+  layers.Dense(128, activation='relu', activity_regularizer=regularizers.l2(L2)),
   layers.Dense(128, activation='relu', activity_regularizer=regularizers.l2(L2)),
   layers.Dense(128, activation='relu', activity_regularizer=regularizers.l2(L2)),
   layers.Dense(1, activation='sigmoid')
@@ -167,7 +176,7 @@ print(classification_report(y_true, y_pred, target_names=target_names))
 
 # %%
 # Save Model
-MODEL_NAME = 'class_age_sib_par_fare_sex_emb_ticket_lname'
+MODEL_NAME = 'class_age_sib_par_fare_sex_emb_ticket_lname_cabin'
 model.save(MODEL_SAVE_PATH+MODEL_NAME)
 
 # %%
