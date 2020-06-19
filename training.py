@@ -161,7 +161,7 @@ model.save(MODEL_SAVE_PATH+MODEL_NAME)
 
 # %%
 # Load Model
-MODEL_NAME = 'class_age_sib_par_fare_sex_emb_ticket_lname_cabin'
+MODEL_NAME = 'class_age_sib_par_fare_sex_emb'
 model = tf.keras.models.load_model(MODEL_SAVE_PATH+MODEL_NAME)
 
 

@@ -1,8 +1,24 @@
-Ones to include: pclass, Age
 
-Parch and SibSp seem to have a lot of variation (might want to combine these with age)
+Try combining Parch and SibSp with age
 
-Leave out ticket and last name, maybe cabin
+Leave out ticket and last name, cabin
+
+
+
+Current best:
+features: 'Pclass', 'Age', 'SibSp', 'Parch', 'Sex', 'Embarked'
+
+                    precision    recall  f1-score   support
+
+did not survive       0.87      0.96      0.91       117
+       survived       0.90      0.73      0.80        62
+
+       accuracy                           0.88       179
+      macro avg       0.88      0.84      0.86       179
+   weighted avg       0.88      0.88      0.87       179
+
+
+
 
 Notes: added cabin, removed fare
 features: 'Pclass', 'Age', 'SibSp', 'Parch', 'Sex', 'Embarked', 'Ticket', 'Last_Name', 'Cabin'
