@@ -2,16 +2,25 @@
 #Import libraries
 import pandas as pd
 import numpy as np
+import os
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix, classification_report
+from sklearn.preprocessing import StandardScaler
 import tensorflow as tf
 from tensorflow import feature_column
 from tensorflow.keras import layers, regularizers
 from tensorflow.keras.constraints import max_norm
 import matplotlib.pyplot as plt
 from pre_process import create_df, df_to_dataset
+%load_ext autoreload
+%autoreload 2
+
+os.chdir('/workspaces/MachineLearning/Kaggle/Titanic/')
 
 MODEL_SAVE_PATH = './saved_models/'
+RAND = 24
+STANDARDIZE = True
+TEST_SIZE=0.2
 
 # %%
 #Import data
@@ -25,21 +34,25 @@ print(train_data.isnull().sum())
 
 # Feature selection/creation
 label = 'Survived'
-num_features = ['Pclass', 'SibSp', 'Parch', 'Age']
-# num_features = ['Pclass', 'SibSp', 'Parch', 'Age', 'Fare']
-cat_features_freqFill = ['Sex',  'Embarked', 'Ticket', 'Last_Name']
-cat_features_xFill = ['Cabin']
+num_features = ['Pclass', 'SibSp', 'Parch', 'Age', 'Fare']
+cat_features_freqFill = ['Sex', 'Embarked']
+# cat_features_freqFill = ['Sex',  'Embarked', 'Ticket', 'Last_Name']
+cat_features_xFill = []
+# cat_features_xFill = ['Cabin']
 
 all_features = num_features + cat_features_freqFill + cat_features_xFill
 
-train_df = create_df(train_data, num_features, cat_features_freqFill, cat_features_xFill, label)
-submission_df = create_df(submission_data, num_features, cat_features_freqFill, cat_features_xFill)
+train_df = create_df(train_data, num_features, cat_features_freqFill, cat_features_xFill, STANDARDIZE, label)
+submission_df = create_df(submission_data, num_features, cat_features_freqFill, cat_features_xFill, STANDARDIZE)
 
 # Descriptives
 train_df.corr()
 
 # Test/Train
-train, test = train_test_split(train_df, test_size=0.2, random_state=42)
+train, test = train_test_split(train_df, test_size=TEST_SIZE, random_state=RAND)
+
+# Standardize
+# train = StandardScaler().fit_transform(train)
 
 feature_columns = []
 
@@ -49,61 +62,61 @@ for header in num_features:
 
 
 # indicator cols
-sex = feature_column.categorical_column_with_vocabulary_list(
-    'Sex', ['male', 'female'])
-feature_columns.append(feature_column.indicator_column(sex))
+if 'Sex' in cat_features_freqFill:
+    sex = feature_column.categorical_column_with_vocabulary_list(
+        'Sex', ['male', 'female'])
+    feature_columns.append(feature_column.indicator_column(sex))
 
-embarked = feature_column.categorical_column_with_vocabulary_list(
-    'Embarked', ['C', 'Q', 'S'])
-feature_columns.append(feature_column.indicator_column(embarked))
+if 'Pclass' in cat_features_freqFill:
+    Pclass = feature_column.categorical_column_with_vocabulary_list(
+        'Pclass', [1, 2, 3])
+    feature_columns.append(feature_column.indicator_column(Pclass))
 
-train_df.groupby('Ticket').nunique()  # unique tickets = 681
-ticket_hashed = feature_column.categorical_column_with_hash_bucket(
-      'Ticket', hash_bucket_size=681)
-feature_columns.append(feature_column.indicator_column(ticket_hashed))
+if 'Embarked' in cat_features_freqFill:
+    embarked = feature_column.categorical_column_with_vocabulary_list(
+        'Embarked', ['C', 'Q', 'S'])
+    feature_columns.append(feature_column.indicator_column(embarked))
 
-train_df.groupby('Last_Name').nunique() # unique last names = 667
-lname_hashed = feature_column.categorical_column_with_hash_bucket(
-      'Last_Name', hash_bucket_size=667)
-feature_columns.append(feature_column.indicator_column(lname_hashed))
+if 'Ticket' in cat_features_freqFill:
+    train_df.groupby('Ticket').nunique()  # unique tickets = 681
+    ticket_hashed = feature_column.categorical_column_with_hash_bucket(
+        'Ticket', hash_bucket_size=681)
+    feature_columns.append(feature_column.indicator_column(ticket_hashed))
 
-train_df.groupby('Cabin').nunique() # unique Cabins = 147
-cabin_hashed = feature_column.categorical_column_with_hash_bucket(
-      'Cabin', hash_bucket_size=147)
-feature_columns.append(feature_column.indicator_column(cabin_hashed))
+if 'Last_Name' in cat_features_freqFill:
+    train_df.groupby('Last_Name').nunique() # unique last names = 667
+    lname_hashed = feature_column.categorical_column_with_hash_bucket(
+        'Last_Name', hash_bucket_size=667)
+    feature_columns.append(feature_column.indicator_column(lname_hashed))
+
+if 'Cabin' in cat_features_xFill:
+    train_df.groupby('Cabin').nunique() # unique Cabins = 147
+    cabin_hashed = feature_column.categorical_column_with_hash_bucket(
+        'Cabin', hash_bucket_size=147)
+    feature_columns.append(feature_column.indicator_column(cabin_hashed))
 
 # create feature layer
 feature_layer = tf.keras.layers.DenseFeatures(feature_columns)
 
-
+# %%
+# Train Model
 # Training settings
-BATCH_SIZE = 32
-EPOCS = 70
-LEARNING_RATE = 0.0001
+BATCH_SIZE = 100
+EPOCS = 100
+LEARNING_RATE = 0.001
 L2 = 1e-4
 train_ds = df_to_dataset(train, True, BATCH_SIZE, label)
 test_ds = df_to_dataset(test, False, BATCH_SIZE, label)
 submission_ds = df_to_dataset(submission_df, False, BATCH_SIZE, has_label=False)
 
-
-# %%
-# Train Model
-
-# example_batch = next(iter(train_ds))[0]
-# def demo(feature_column):
-#   feature_layer = layers.DenseFeatures(feature_column)
-#   return feature_layer(example_batch).numpy()
-# peak = demo(feature_column.indicator_column(ticket_hashed))
-
 opt = tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE)
 # model
 model = tf.keras.Sequential([
   feature_layer,
-#   layers.Dense(128, activation='relu'),
-#   layers.Dense(128, activation='relu'),
-  layers.Dense(128, activation='relu', activity_regularizer=regularizers.l2(L2)),
-  layers.Dense(128, activation='relu', activity_regularizer=regularizers.l2(L2)),
-  layers.Dense(128, activation='relu', activity_regularizer=regularizers.l2(L2)),
+  layers.Dense(100, activation='relu', activity_regularizer=regularizers.l2(L2)),
+  layers.Dropout(0.2),
+  layers.Dense(100, activation='relu', activity_regularizer=regularizers.l2(L2)),
+  layers.Dropout(0.2),
   layers.Dense(1, activation='sigmoid')
 ])
 
@@ -133,6 +146,7 @@ plt.xlabel('epoch')
 plt.legend(['train', 'test'], loc='upper left')
 plt.show()
 
+# Evaluate
 loss, accuracy = model.evaluate(test_ds)
 y_pred = model.predict_classes(test_ds)
 y_true = test.Survived
@@ -142,7 +156,7 @@ print(classification_report(y_true, y_pred, target_names=target_names))
 
 # %%
 # Save Model
-MODEL_NAME = 'class_age_sib_par_fare_sex_emb_ticket_lname_cabin'
+MODEL_NAME = 'class_age_sib_par_fare_sex_emb'
 model.save(MODEL_SAVE_PATH+MODEL_NAME)
 
 # %%
@@ -153,7 +167,7 @@ model = tf.keras.models.load_model(MODEL_SAVE_PATH+MODEL_NAME)
 
 # %%
 # Get Predictions
-SAVE_NAME = './submissions/6_13_submission.csv'
+SAVE_NAME = './submissions/6_19_submission_noCab2.csv'
 predictions = model.predict_classes(submission_ds)
 
 output = pd.DataFrame({'PassengerId': submission_data.PassengerId, 'Survived': np.ravel(predictions)})

@@ -1,4 +1,8 @@
-Overall Notes: removing fare seems to always improve accuracy
+Ones to include: pclass, Age
+
+Parch and SibSp seem to have a lot of variation (might want to combine these with age)
+
+Leave out ticket and last name, maybe cabin
 
 Notes: added cabin, removed fare
 features: 'Pclass', 'Age', 'SibSp', 'Parch', 'Sex', 'Embarked', 'Ticket', 'Last_Name', 'Cabin'
