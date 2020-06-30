@@ -1,7 +1,5 @@
 
-Try combining Parch and SibSp with age
-
-Leave out ticket and last name, cabin
+Try different rand numbers with current to see if it is good (stays above 78)
 
 
 

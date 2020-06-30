@@ -20,7 +20,7 @@ os.chdir('/workspaces/MachineLearning/Kaggle/Titanic/')
 MODEL_SAVE_PATH = './saved_models/'
 RAND = 10
 STANDARDIZE = True
-TEST_SIZE=0.2
+TEST_SIZE=0.15
 
 # %%
 #Import data
@@ -34,7 +34,8 @@ print(train_data.isnull().sum())
 
 # Feature selection/creation
 label = 'Survived'
-num_features = ['SibSp', 'Parch', 'Age', 'Fare']
+num_features = ['SibSp', 'Parch', 'Age']
+# num_features = ['SibSp', 'Parch', 'Age', 'Fare']
 # num_features = ['Age', 'Fare']
 cat_features_freqFill = ['Sex', 'Embarked', 'Pclass', 'Ticket', 'Last_Name']
 # cat_features_freqFill = ['Sex',  'Embarked', 'Ticket', 'Last_Name']
@@ -103,9 +104,8 @@ fare_buckets = feature_column.bucketized_column(age_col, boundaries=[0, 5, 10, 2
 sib_buckets = feature_column.bucketized_column(sib_col, boundaries=list(np.arange(0, 6, step=1)))
 parch_buckets = feature_column.bucketized_column(parch_col, boundaries=list(np.arange(0, 6, step=1)))
 
-age_fare_cross = feature_column.crossed_column([age_buckets, fare_buckets], hash_bucket_size=1000)
-feature_columns.append(feature_column.indicator_column(age_fare_cross))
-
+# age_fare_cross = feature_column.crossed_column([age_buckets, fare_buckets], hash_bucket_size=1000)
+# feature_columns.append(feature_column.indicator_column(age_fare_cross))
 
 # sex_fare_cross = feature_column.crossed_column([sex, fare_buckets], hash_bucket_size=1000)
 # feature_columns.append(feature_column.indicator_column(sex_fare_cross))
@@ -131,10 +131,10 @@ feature_layer = tf.keras.layers.DenseFeatures(feature_columns)
 # %%
 # Train Model
 # Training settings
-BATCH_SIZE = 80
-EPOCS = 40
+BATCH_SIZE = 100
+EPOCS = 50
 LEARNING_RATE = 0.0001
-L2 = 1e-4
+L2 = 1e-8
 train_ds = df_to_dataset(train, True, BATCH_SIZE, label)
 test_ds = df_to_dataset(test, False, BATCH_SIZE, label)
 submission_ds = df_to_dataset(submission_df, False, BATCH_SIZE, has_label=False)
@@ -143,11 +143,10 @@ opt = tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE)
 # model
 model = tf.keras.Sequential([
   feature_layer,
-  layers.Dropout(0.2),
+  layers.Dropout(0),
   layers.Dense(100, activation='relu', activity_regularizer=regularizers.l2(L2)),
-  layers.Dense(100, activation='relu', activity_regularizer=regularizers.l2(L2)),
-  layers.Dense(100, activation='relu', activity_regularizer=regularizers.l2(L2)),
-  layers.Dense(100, activation='relu', activity_regularizer=regularizers.l2(L2)),
+  layers.Dense(200, activation='relu', activity_regularizer=regularizers.l2(L2)),
+  layers.Dense(50, activation='relu', activity_regularizer=regularizers.l2(L2)),
   layers.Dense(1, activation='sigmoid')
 ])
 
@@ -187,7 +186,7 @@ print(classification_report(y_true, y_pred, target_names=target_names))
 
 # %%
 # Save Model
-MODEL_NAME = 'dropout_withcross'
+MODEL_NAME = '6_29_p2_submission'
 model.save(MODEL_SAVE_PATH+MODEL_NAME)
 
 # %%
@@ -198,7 +197,7 @@ model = tf.keras.models.load_model(MODEL_SAVE_PATH+MODEL_NAME)
 
 # %%
 # Get Predictions
-SAVE_NAME = './submissions/6_20_submission_dropout_withcross.csv'
+SAVE_NAME = './submissions/6_29_p2_submission.csv'
 predictions = model.predict_classes(submission_ds)
 
 output = pd.DataFrame({'PassengerId': submission_data.PassengerId, 'Survived': np.ravel(predictions)})
